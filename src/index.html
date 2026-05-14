@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
+</head>
+
+<body style="margin:0; overflow:hidden; background:black;">
+
+<script>
+
+let started = false;
+let activated = false;
+let touched = false;
+
+let touchStartedAt = 0;
+let waitingStartedAt = 0;
+let seeYouUntil = 0;
+
+let angle = 0;
+
+let heavenlyLayer = 1;
+let speedLevel = 1;
+let colorPulse = false;
+let distortion = false;
+
+let bell1, bell2, bell3;
+let glass1, glass2, glass3;
+let choir1, choir2;
+
+let noiseOsc, staticFilter;
+
+let lastArp = 0;
+let arpIndex = 0;
+
+let flashColor = null;
+let flashUntil = 0;
+
+const colors = [
+  [255,0,0],
+  [0,70,255],
+  [0,255,255],
+  [255,0,255],
+  [255,255,0],
+  [0,255,80]
+];
+
+const chords = [
+  [523.25,659.25,783.99,987.77,1318.51,1567.98,1975.53],
+  [440.00,523.25,659.25,783.99,1046.50,1318.51,1760.00],
+  [587.33,698.46,880.00,1046.50,1396.91,1760.00,2093.00],
+  [392.00,493.88,587.33,783.99,987.77,1174.66,1567.98],
+  [554.37,698.46,830.61,1046.50,1244.51,1661.22,2093.00]
+];
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  pixelDensity(1);
+  textAlign(CENTER, CENTER);
+}
+
+function draw() {
+
+  if (!started) {
+    background(0);
+
+    fill(255);
+    noStroke();
+    textSize(20);
+    text("click to enter", width/2, height/2);
+
+    return;
+  }
+
+  // fake motion sensor waiting state
+  if (!activated) {
+
+    background(0);
+
+    let elapsed = millis() - waitingStartedAt;
+
+    stroke(255, 35);
+    strokeWeight(1);
+
+    for (let i = 0; i < 12; i++) {
+      let y = (frameCount * 3 + i * 80) % height;
+      line(0, y, width, y);
+    }
+
+    fill(255, 100);
+    noStroke();
+    textSize(18);
+
+    text("waiting for presence", width/2, height/2);
+
+    if (elapsed > 8000) {
+      fill(255);
+      textSize(random(42, 60));
+
+      text(
+        "SPOTTED!",
+        width/2 + random(-6,6),
+        height/2 + random(-6,6)
+      );
+    }
+
+    if (elapsed > 9500) {
+      activated = true;
+      seeYouUntil = millis() + 1400;
+    }
+
+    return;
+  }
+
+  updateSound();
+
+  if (touched) {
+    drawStaticMode();
+  } else {
+    drawHeavenlyMode();
+  }
+
+  if (millis() < seeYouUntil) {
+
+    fill(255);
+    noStroke();
+
+    textSize(random(34,48));
+
+    text(
+      "I see you",
+      width/2 + random(-5,5),
+      height/2 + random(-5,5)
+    );
+  }
+}
+
+function mousePressed() {
+
+  if (!started) {
+    startAudio();
+  }
+}
+
+function startAudio() {
+
+  userStartAudio();
+
+  started = true;
+
+  bell1 = new p5.Oscillator("triangle");
+  bell2 = new p5.Oscillator("sine");
+  bell3 = new p5.Oscillator("triangle");
+
+  glass1 = new p5.Oscillator("sine");
+  glass2 = new p5.Oscillator("sine");
+  glass3 = new p5.Oscillator("sine");
+
+  choir1 = new p5.Oscillator("sine");
+  choir2 = new p5.Oscillator("sine");
+
+  for (let osc of [
+    bell1,bell2,bell3,
+    glass1,glass2,glass3,
+    choir1,choir2
+  ]) {
+    osc.amp(0);
+    osc.start();
+  }
+
+  noiseOsc = new p5.Noise("white");
+
+  staticFilter = new p5.HighPass();
+
+  noiseOsc.disconnect();
+  noiseOsc.connect(staticFilter);
+
+  staticFilter.freq(1000);
+
+  noiseOsc.amp(0);
+
+  noiseOsc.start();
+
+  waitingStartedAt = millis();
+}
+
+function setTouched(state) {
+
+  if (state && !touched) {
+    touchStartedAt = millis();
+  }
+
+  touched = state;
+}
+
+function updateSound() {
+
+  if (touched) {
+
+    for (let osc of [
+      bell1,bell2,bell3,
+      glass1,glass2,glass3,
+      choir1,choir2
+    ]) {
+      osc.amp(0, 0.02);
+    }
+
+    noiseOsc.amp(random(0.35,0.7), 0.004);
+
+    staticFilter.freq(random(250,11000));
+
+    return;
+  }
+
+  noiseOsc.amp(0, 0.08);
+
+  let interval = 55 / speedLevel;
+
+  if (millis() - lastArp > interval) {
+
+    lastArp = millis();
+
+    let chord =
+      chords[floor(arpIndex / 24) % chords.length];
+
+    let n1 =
+      chord[arpIndex % chord.length];
+
+    let n2 =
+      chord[(arpIndex * 2 + 1) % chord.length];
+
+    let n3 =
+      chord[(arpIndex * 3 + 2) % chord.length];
+
+    bell1.freq(n1);
+
+    bell1.amp(
+      0.035 * heavenlyLayer,
+      0.006
+    );
+
+    bell1.amp(0, 0.13);
+
+    bell2.freq(n2 * 1.5);
+
+    bell2.amp(
+      0.024 * heavenlyLayer,
+      0.006
+    );
+
+    bell2.amp(0, 0.18);
+
+    bell3.freq(n3 * 2);
+
+    bell3.amp(
+      0.015 * heavenlyLayer,
+      0.004
+    );
+
+    bell3.amp(0, 0.08);
+
+    if (heavenlyLayer > 1 && arpIndex % 2 === 0) {
+
+      glass1.freq(chord[2] * 2.01);
+      glass2.freq(chord[4] * 1.98);
+      glass3.freq(chord[6] * 1.49);
+
+      glass1.amp(0.012, 0.08);
+      glass1.amp(0, 0.7);
+
+      glass2.amp(0.01, 0.09);
+      glass2.amp(0, 0.8);
+
+      glass3.amp(0.009, 0.1);
+      glass3.amp(0, 0.9);
+    }
+
+    if (heavenlyLayer > 2) {
+
+      choir1.freq(chord[1]);
+
+      choir2.freq(chord[3] * 1.005);
+
+      choir1.amp(0.014, 1.0);
+
+      choir2.amp(0.012, 1.4);
+    }
+
+    arpIndex++;
+  }
+}
+
+function drawHeavenlyMode() {
+
+  background(0, 30);
+
+  translate(width/2, height/2);
+
+  rotate(angle);
+
+  noFill();
+
+  let maxR =
+    max(width, height) * 1.4;
+
+  let distortionAmount =
+    distortion ? 70 : 34;
+
+  for (let r = 18; r < maxR; r += 18) {
+
+    let wave =
+      sin(angle * 3 + r * 0.035)
+      * distortionAmount;
+
+    let sw =
+      map(
+        sin(angle * 2 + r * 0.01),
+        -1,
+        1,
+        0.6,
+        distortion ? 5.0 : 3.2
+      );
+
+    strokeWeight(sw);
+
+    if ((colorPulse || flashColor)
+      && (r % 72 < 22)) {
+
+      let c =
+        flashColor
+        || colors[floor(frameCount / 6) % colors.length];
+
+      stroke(c[0], c[1], c[2], 210);
+
+    } else {
+
+      let v =
+        map(
+          sin(angle + r * 0.018),
+          -1,
+          1,
+          80,
+          255
+        );
+
+      stroke(v, 185);
+    }
+
+    ellipse(
+      wave,
+      -wave,
+      r + wave,
+      r - wave
+    );
+  }
+
+  for (let i = 0; i < 16; i++) {
+
+    rotate(TWO_PI / 16);
+
+    stroke(255, 80);
+
+    strokeWeight(1);
+
+    line(
+      0,
+      0,
+      maxR * 0.45,
+      sin(angle * 5 + i)
+      * (distortion ? 160 : 80)
+    );
+  }
+
+  if (random() < 0.018) {
+    triggerColorFlash();
+  }
+
+  angle += 0.06 * speedLevel;
+}
+
+function drawStaticMode() {
+
+  background(0);
+
+  loadPixels();
+
+  for (let i = 0; i < pixels.length; i += 4) {
+
+    let v =
+      random() > 0.55 ? 255 : 0;
+
+    let c = random(colors);
+
+    if (random() < 0.1) {
+
+      pixels[i] = c[0];
+      pixels[i+1] = c[1];
+      pixels[i+2] = c[2];
+
+    } else {
+
+      pixels[i] = v;
+      pixels[i+1] = v;
+      pixels[i+2] = v;
+    }
+
+    pixels[i+3] = 255;
+  }
+
+  updatePixels();
+
+  stroke(255);
+
+  strokeWeight(random(1,10));
+
+  for (let i = 0; i < 24; i++) {
+
+    let y = random(height);
+
+    line(
+      0,
+      y,
+      width,
+      y + random(-25,25)
+    );
+  }
+
+  if (
+    millis() - touchStartedAt > 3000
+    && frameCount % 18 < 7
+  ) {
+
+    fill(255);
+
+    noStroke();
+
+    textSize(random(36,54));
+
+    text(
+      "think for yourself?",
+      width/2 + random(-10,10),
+      height/2 + random(-10,10)
+    );
+  }
+}
+
+function triggerColorFlash() {
+
+  flashColor = random(colors);
+
+  flashUntil =
+    millis() + random(120,420);
+
+  setTimeout(() => {
+    flashColor = null;
+  }, 420);
+}
+
+function keyPressed() {
+
+  if (!started) {
+    startAudio();
+  }
+
+  if (key === "1") {
+    heavenlyLayer =
+      min(3, heavenlyLayer + 1);
+  }
+
+  if (key === "2") {
+    speedLevel =
+      speedLevel === 1 ? 1.8 : 1;
+  }
+
+  if (key === "3") {
+    colorPulse = !colorPulse;
+  }
+
+  if (key === "4") {
+    distortion = !distortion;
+  }
+
+  if (key === " ") {
+    setTouched(!touched);
+  }
+
+  if (key === "h" || key === "H") {
+
+    setTouched(false);
+
+    activated = true;
+  }
+
+  if (key === "r" || key === "R") {
+
+    setTouched(false);
+
+    activated = false;
+
+    heavenlyLayer = 1;
+    speedLevel = 1;
+    colorPulse = false;
+    distortion = false;
+
+    waitingStartedAt = millis();
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+
+</script>
+</body>
+</html>
+
