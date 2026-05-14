@@ -2,8 +2,8 @@
 
 Zoe Homan
 Creative Embedded Systems — Spring 2026
-![Final Sculpture]dome.jpg)
-![Simulation visuals](domeVisuals.jpg)
+![Final Sculpture](dome.jpg)
+![Simulation visuals](domeVisuals.png)
 ## Overview
 
 Latent fields is an interactive audiovisual installation built around a copper dome structure, capacitive touch sensing, and generative visuals/audio.
